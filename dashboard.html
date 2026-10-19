@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Home Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏠</text></svg>">
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+<style>
+  :root {
+    --bg: #435461;
+    --card: #506375;
+    --accent: #f5a623;
+    --accent2: #4fd1c5;
+    --text: #e6edf3;
+    --muted: #8b98a5;
+    --good: #4fd18a;
+    --bad: #e55353;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(180deg, #435461 0%, #384652 100%);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 24px;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; display: flex; align-items: center; gap: 10px; }
+  .subtitle { color: var(--muted); margin-bottom: 24px; font-size: 0.9rem; }
+  .status-pill {
+    font-size: 0.8rem;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: #5f7488;
+    color: var(--muted);
+  }
+  .status-pill.ok { background: rgba(79,209,138,0.15); color: var(--good); }
+  .status-pill.err { background: rgba(229,83,83,0.15); color: var(--bad); }
+  .status-pill.warn { background: rgba(245,166,35,0.18); color: var(--accent); }
+
+  .status-line { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; font-size: 0.8rem; color: var(--muted); margin: -12px 0 18px; }
+  .status-item { display: inline-flex; align-items: center; gap: 6px; }
+  .sdot { width: 9px; height: 9px; border-radius: 50%; background: #8b98a5; display: inline-block; flex-shrink: 0; }
+  .sdot.ok { background: var(--good); }
+  .sdot.warn { background: var(--accent); }
+  .sdot.bad { background: var(--bad); }
+  .warning-banner { border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; font-size: 0.9rem; line-height: 1.55; border: 1px solid; border-left-width: 5px; }
+  .warning-banner.warn { background: rgba(245,166,35,0.15); border-color: var(--accent); }
+  .warning-banner.bad { background: rgba(229,83,83,0.18); border-color: var(--bad); }
+  .warning-banner .hint { opacity: 0.85; }
+  .warning-banner code { background: rgba(0,0,0,0.25); padding: 1px 6px; border-radius: 4px; font-size: 0.82rem; }
+  .stale { opacity: 0.45; transition: opacity 0.2s; }
+
+  .minicards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .minicard { background: var(--bg); border-radius: 10px; padding: 12px 14px; }
+  .minicard .label { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .minicard .value { font-size: 1.3rem; font-weight: 700; }
+  .minicard .value .unit { font-size: 0.75rem; color: var(--muted); font-weight: 400; margin-left: 4px; }
+  .minicard .sub { color: var(--muted); font-size: 0.72rem; margin-top: 2px; }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .card .label { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+  .card .value { font-size: 1.8rem; font-weight: 700; }
+  .card .value .unit { font-size: 1rem; color: var(--muted); font-weight: 400; margin-left: 4px; }
+  .card.production .value { color: var(--accent); }
+  .card.net .value { color: var(--accent2); }
+
+  .panels {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .panels h2 { font-size: 1rem; margin: 0 0 14px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #56697b; }
+  th { color: var(--muted); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .dot.on { background: var(--good); }
+  .dot.off { background: var(--bad); }
+
+  .msg {
+    background: var(--card);
+    border-left: 3px solid var(--accent);
+    padding: 14px 18px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: var(--muted);
+  }
+  .msg strong { color: var(--text); }
+  .footer { text-align: center; color: var(--muted); font-size: 0.75rem; margin-top: 30px; }
+
+  /* FullCalendar dark theme overrides */
+  .fc {
+    --fc-border-color: #56697b;
+    --fc-page-bg-color: transparent;
+    --fc-neutral-bg-color: #506375;
+    --fc-neutral-text-color: var(--muted);
+    --fc-today-bg-color: rgba(245, 166, 35, 0.12);
+    --fc-button-bg-color: #506375;
+    --fc-button-border-color: #5f7488;
+    --fc-button-hover-bg-color: #56697b;
+    --fc-button-hover-border-color: #5f7488;
+    --fc-button-active-bg-color: var(--accent2);
+    --fc-button-active-border-color: var(--accent2);
+    --fc-button-text-color: var(--text);
+    --fc-list-event-hover-bg-color: #56697b;
+    color: var(--text);
+  }
+  .fc .fc-toolbar-title { color: var(--text); font-size: 1.15rem; }
+  .fc .fc-col-header-cell-cushion { color: var(--muted); font-size: 0.8rem; text-decoration: none; }
+  .fc .fc-daygrid-day-number { color: var(--text); text-decoration: none; font-size: 0.85rem; }
+  .fc .fc-daygrid-day-frame { background: transparent; }
+  .fc-event { border: none; padding: 1px 5px; font-size: 0.72rem; cursor: pointer; }
+  .fc-button { text-transform: capitalize !important; box-shadow: none !important; font-size: 0.8rem !important; }
+  .fc-button:focus { box-shadow: none !important; }
+  .fc-daygrid-more-link { color: var(--accent2) !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🏠 Home Dashboard <span id="statusPill" class="status-pill">connecting…</span></h1>
+  <div class="subtitle">Served locally by solar_proxy.py.</div>
+
+  <div id="statusLine" class="status-line"></div>
+  <div id="warningBanner" class="warning-banner" style="display:none;" role="alert"></div>
+
+  <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid #56697b;">
+    <button class="top-tab-btn active" data-toptab="calendar" style="background:none;border:none;color:var(--text);padding:10px 16px;font-size:0.9rem;font-weight:600;cursor:pointer;border-bottom:2px solid var(--accent);">Calendar</button>
+    <button class="top-tab-btn" data-toptab="solar" style="background:none;border:none;color:var(--muted);padding:10px 16px;font-size:0.9rem;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;">Solar</button>
+  </div>
+
+  <div id="toptab-calendar">
+    <div class="panels">
+      <div id="fullCalendarEl"></div>
+    </div>
+  </div>
+
+  <div id="toptab-solar" style="display:none;">
+    <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid #56697b;">
+      <button class="sub-tab-btn active" data-subtab="overview" style="background:none;border:none;color:var(--text);padding:8px 14px;font-size:0.85rem;font-weight:600;cursor:pointer;border-bottom:2px solid var(--accent);">Overview</button>
+      <button class="sub-tab-btn" data-subtab="charts" style="background:none;border:none;color:var(--muted);padding:8px 14px;font-size:0.85rem;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;">Chart</button>
+    </div>
+
+    <div id="tab-overview">
+    <div class="cards" id="liveCards">
+      <div class="card production">
+        <div class="label">Current Production</div>
+        <div class="value" id="curProduction">–<span class="unit">kW</span></div>
+      </div>
+      <div class="card">
+        <div class="label">Current Consumption (Site Load)</div>
+        <div class="value" id="curConsumption">–<span class="unit">kW</span></div>
+      </div>
+      <div class="card net">
+        <div class="label">Net (Grid Import/Export)</div>
+        <div class="value" id="curNet">–<span class="unit">kW</span></div>
+      </div>
+      <div class="card">
+        <div class="label">Lifetime Production</div>
+        <div class="value" id="lifetimeProduction">–<span class="unit">kWh</span></div>
+      </div>
+    </div>
+
+    <div class="panels" style="margin-bottom:20px;">
+      <h2>Generation History</h2>
+      <div class="cards" style="margin-bottom:0;">
+        <div class="card">
+          <div class="label">Today</div>
+          <div class="value" id="histToday">–<span class="unit">kWh</span></div>
+        </div>
+        <div class="card">
+          <div class="label">This Week</div>
+          <div class="value" id="histWeek">–<span class="unit">kWh</span></div>
+        </div>
+        <div class="card">
+          <div class="label">This Month</div>
+          <div class="value" id="histMonth">–<span class="unit">kWh</span></div>
+        </div>
+        <div class="card">
+          <div class="label">Year to Date</div>
+          <div class="value" id="histYtd">–<span class="unit">kWh</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panels" style="margin-bottom:20px;">
+      <h2>Today's Weather</h2>
+      <div id="weatherToday" style="margin-top:10px;color:var(--muted);font-size:0.9rem;">Loading…</div>
+    </div>
+
+    <div class="panels" id="panelPanel">
+      <h2>Panel / Inverter Status</h2>
+      <table>
+        <thead>
+          <tr><th>Serial</th><th>Status</th><th>Power</th><th>Lifetime kWh</th><th>Temp</th></tr>
+        </thead>
+        <tbody id="panelRows">
+          <tr><td colspan="5" style="color:var(--muted)">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    </div>
+
+    <div id="tab-charts" style="display:none;">
+    <div class="panels" style="margin-bottom:20px;">
+      <h2>Daily Production</h2>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px;">
+        <select id="dailyMonthPicker" style="background:#435461;border:1px solid #5f7488;color:var(--text);padding:6px 10px;border-radius:6px;"></select>
+        <button id="loadMtdBtn" style="background:var(--accent2);border:none;color:#0f1720;padding:6px 14px;border-radius:6px;font-size:0.85rem;font-weight:600;cursor:pointer;">Load</button>
+      </div>
+      <div id="mtdChartWrap" style="margin-top:16px;color:var(--muted);font-size:0.85rem;">
+        Pick a month above and click Load.
+      </div>
+    </div>
+
+    <div class="panels">
+      <h2>Monthly Analysis <button id="loadAnalysisBtn" style="float:right;background:var(--accent2);border:none;color:#0f1720;padding:5px 12px;border-radius:6px;font-size:0.8rem;font-weight:600;cursor:pointer;">Load / Refresh</button></h2>
+      <div id="monthlyChart" style="margin-top:16px;color:var(--muted);font-size:0.85rem;">
+        Click "Load / Refresh" once you've got some history logged.
+      </div>
+
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-top:10px;">
+        <div>
+          <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:4px;">Compare</label>
+          <select id="monthA" style="background:#435461;border:1px solid #5f7488;color:var(--text);padding:6px 10px;border-radius:6px;"></select>
+        </div>
+        <div style="color:var(--muted);">vs</div>
+        <div>
+          <label style="font-size:0.8rem;color:var(--muted);display:block;margin-bottom:4px;">To</label>
+          <select id="monthB" style="background:#435461;border:1px solid #5f7488;color:var(--text);padding:6px 10px;border-radius:6px;"></select>
+        </div>
+        <div id="compareResult" style="font-size:0.95rem;"></div>
+      </div>
+    </div>
+
+    <div class="panels" style="margin-top:20px;">
+      <h2>Sunlight-Adjusted Output <span style="color:var(--muted);font-weight:400;font-size:0.8rem;">· cleaning signal</span></h2>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:10px;">
+        <select id="effRange" style="background:#435461;border:1px solid #5f7488;color:var(--text);padding:6px 10px;border-radius:6px;">
+          <option value="30">Last 30 days</option>
+          <option value="90" selected>Last 90 days</option>
+          <option value="180">Last 6 months</option>
+          <option value="365">Last year</option>
+          <option value="0">All history</option>
+        </select>
+        <label style="font-size:0.8rem;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" id="effTempAdjust" checked> Adjust for temperature
+        </label>
+        <button id="effRefreshBtn" style="background:var(--accent2);border:none;color:#0f1720;padding:6px 14px;border-radius:6px;font-size:0.85rem;font-weight:600;cursor:pointer;">Refresh</button>
+      </div>
+      <div id="effSummary" style="margin-top:14px;"></div>
+      <div id="effChart" style="margin-top:12px;color:var(--muted);font-size:0.85rem;">Loading…</div>
+      <details style="margin-top:12px;font-size:0.8rem;color:var(--muted);line-height:1.5;">
+        <summary style="cursor:pointer;">How to read this</summary>
+        <p>Each dot is one full day: the kWh your panels produced divided by that day's “sun-hours” (hours of full-strength sun, from the weather data). Dividing out the sunshine means a cloudy day no longer looks like a problem — the number stays steady when the panels are healthy.</p>
+        <p>The line is a 14-day median. Dust usually shows up as a slow drift downward that rain (blue marks) partly reverses. A sudden one-day drop is more often shade, an offline panel, or bad data.</p>
+        <p>Heat makes panels less efficient, so “adjust for temperature” evens out summer vs. winter (it's a rough estimate). Even so, the cleanest comparison is the same time of year, which is what the “vs. last year” tile shows once there's a year of history.</p>
+        <p>The sunshine figures are modeled for your area rather than measured on your roof, so individual days are a bit noisy — trust the trend, not any single dot. Days with a logging gap, partial days, and very dim days are left out.</p>
+      </details>
+    </div>
+    </div>
+  </div>
+
+  <div class="footer">Last updated: <span id="lastUpdated">–</span></div>
+</div>
+
+<div id="chartTooltip" style="position:fixed;pointer-events:none;background:#506375;border:1px solid #5f7488;padding:6px 10px;border-radius:6px;font-size:0.8rem;color:var(--text);display:none;z-index:1000;box-shadow:0 4px 12px rgba(0,0,0,0.4);white-space:nowrap;"></div>
+
+<script>
+function escapeHtml(s) {
+  return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+const WEATHER_CODES = {
+  0: { icon: '☀️', label: 'Clear' }, 1: { icon: '🌤️', label: 'Mainly clear' },
+  2: { icon: '⛅', label: 'Partly cloudy' }, 3: { icon: '☁️', label: 'Overcast' },
+  45: { icon: '🌫️', label: 'Fog' }, 48: { icon: '🌫️', label: 'Fog' },
+  51: { icon: '🌦️', label: 'Light drizzle' }, 53: { icon: '🌦️', label: 'Drizzle' }, 55: { icon: '🌦️', label: 'Heavy drizzle' },
+  61: { icon: '🌧️', label: 'Light rain' }, 63: { icon: '🌧️', label: 'Rain' }, 65: { icon: '🌧️', label: 'Heavy rain' },
+  71: { icon: '🌨️', label: 'Light snow' }, 73: { icon: '🌨️', label: 'Snow' }, 75: { icon: '🌨️', label: 'Heavy snow' },
+  80: { icon: '🌦️', label: 'Rain showers' }, 81: { icon: '🌦️', label: 'Rain showers' }, 82: { icon: '⛈️', label: 'Violent showers' },
+  95: { icon: '⛈️', label: 'Thunderstorm' }, 96: { icon: '⛈️', label: 'Thunderstorm w/ hail' }, 99: { icon: '⛈️', label: 'Thunderstorm w/ hail' },
+};
+function weatherInfo(code) {
+  return WEATHER_CODES[code] || { icon: '❓', label: 'Unknown' };
+}
+
+async function loadTodaysWeather() {
+  const el = document.getElementById('weatherToday');
+  try {
+    const resp = await fetch('/weather/current', { cache: 'no-store' });
+    const w = await resp.json();
+    if (w.error) throw new Error(w.error);
+    const info = weatherInfo(w.weathercode);
+    el.innerHTML = `<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      <div style="font-size:2rem;">${info.icon}</div>
+      <div>
+        <div style="color:var(--text);font-size:1.1rem;font-weight:600;">${info.label}</div>
+        <div style="font-size:0.85rem;">${w.place || ''}</div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:20px;">
+        <div><div style="font-size:0.7rem;text-transform:uppercase;">Temp</div><div style="color:var(--text);font-size:1.1rem;">${w.temp_f !== null && w.temp_f !== undefined ? w.temp_f.toFixed(0) + '°F' : '–'}</div></div>
+        <div><div style="font-size:0.7rem;text-transform:uppercase;">Cloud Cover</div><div style="color:var(--text);font-size:1.1rem;">${w.cloud_cover_pct !== null && w.cloud_cover_pct !== undefined ? w.cloud_cover_pct + '%' : '–'}</div></div>
+      </div>
+    </div>`;
+  } catch (err) {
+    el.innerHTML = 'Could not load current weather: ' + err.message;
+  }
+}
+loadTodaysWeather();
+setInterval(loadTodaysWeather, 600000);
+
+function calendarEventsFetch(fetchInfo, successCallback, failureCallback) {
+  const startStr = fetchInfo.startStr.slice(0, 10); // YYYY-MM-DD
+  const endStr = fetchInfo.endStr.slice(0, 10);
+  fetch(`/calendar/upcoming?start=${startStr}&end=${endStr}`, { cache: 'no-store' })
+    .then(resp => resp.json())
+    .then(result => {
+      if (result.error) {
+        console.warn('Calendar warning:', result.error);
+      }
+      const events = (result.events || []).map(e => ({
+        title: e.summary,
+        start: e.start,
+        end: e.end,
+        allDay: e.all_day,
+        color: e.calendar_color || 'var(--accent)',
+        extendedProps: { location: e.location, calendarName: e.calendar_name },
+      }));
+      successCallback(events);
+    })
+    .catch(err => failureCallback(err));
+}
+
+const fullCalendar = new FullCalendar.Calendar(document.getElementById('fullCalendarEl'), {
+  initialView: 'dayGridMonth',
+  height: 'auto',
+  headerToolbar: { left: 'prev,next today', center: 'title', right: 'refreshBtn' },
+  customButtons: {
+    refreshBtn: {
+      text: 'Refresh',
+      click: () => fullCalendar.refetchEvents(),
+    },
+  },
+  events: calendarEventsFetch,
+  eventDidMount: (info) => {
+    const loc = info.event.extendedProps.location;
+    info.el.title = info.event.title + (loc ? ' — ' + loc : '');
+  },
+});
+fullCalendar.render();
+
+document.querySelectorAll('.top-tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.top-tab-btn').forEach(b => {
+      b.classList.remove('active');
+      b.style.color = 'var(--muted)';
+      b.style.borderBottom = '2px solid transparent';
+    });
+    btn.classList.add('active');
+    btn.style.color = 'var(--text)';
+    btn.style.borderBottom = '2px solid var(--accent)';
+
+    ['calendar', 'solar'].forEach(tab => {
+      document.getElementById('toptab-' + tab).style.display = (btn.dataset.toptab === tab) ? '' : 'none';
+    });
+  });
+});
+
+document.querySelectorAll('.sub-tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.sub-tab-btn').forEach(b => {
+      b.classList.remove('active');
+      b.style.color = 'var(--muted)';
+      b.style.borderBottom = '2px solid transparent';
+    });
+    btn.classList.add('active');
+    btn.style.color = 'var(--text)';
+    btn.style.borderBottom = '2px solid var(--accent)';
+
+    document.getElementById('tab-overview').style.display = (btn.dataset.subtab === 'overview') ? '' : 'none';
+    document.getElementById('tab-charts').style.display = (btn.dataset.subtab === 'charts') ? '' : 'none';
+  });
+});
+
+function showChartTooltip(x, y, text) {
+  const tt = document.getElementById('chartTooltip');
+  tt.textContent = text;
+  tt.style.left = (x + 14) + 'px';
+  tt.style.top = (y + 14) + 'px';
+  tt.style.display = 'block';
+}
+function hideChartTooltip() {
+  document.getElementById('chartTooltip').style.display = 'none';
+}
+function attachChartTooltips(containerId) {
+  const container = document.getElementById(containerId);
+  if (container.dataset.tooltipsAttached) return;   // the container persists across re-renders, so attach once
+  container.dataset.tooltipsAttached = '1';
+  container.addEventListener('mousemove', (e) => {
+    if (e.target.tagName && e.target.tagName.toLowerCase() === 'circle') {
+      const label = e.target.getAttribute('data-label');
+      const value = e.target.getAttribute('data-value');
+      const unit = e.target.getAttribute('data-unit');
+      showChartTooltip(e.clientX, e.clientY, `${label}: ${value}${unit !== null ? unit : ' kWh'}`);
+    } else {
+      hideChartTooltip();
+    }
+  });
+  container.addEventListener('mouseleave', hideChartTooltip);
+}
+
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+let monthlyDataCache = [];
+
+function monthLabel(m) { return `${MONTH_NAMES[m.month - 1]} ${m.year}`; }
+
+function renderMonthlyChart(data) {
+  const chart = document.getElementById('monthlyChart');
+  if (!data.length) {
+    chart.innerHTML = 'No monthly history yet — check back after solar_proxy.py has logged data spanning at least part of a month.';
+    return;
+  }
+
+  const W = 700, H = 260, padL = 50, padR = 20, padT = 20, padB = 40;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+
+  const values = data.map(m => m.kwh);
+  const maxVal = Math.max(...values, 1);
+  const minVal = 0;
+
+  const xStep = data.length > 1 ? plotW / (data.length - 1) : 0;
+  const xFor = i => padL + i * xStep;
+  const yFor = v => padT + plotH - ((v - minVal) / (maxVal - minVal || 1)) * plotH;
+
+  const points = data.map((m, i) => `${xFor(i)},${yFor(m.kwh)}`).join(' ');
+
+  const dots = data.map((m, i) => {
+    const cx = xFor(i), cy = yFor(m.kwh);
+    const color = m.partial ? 'var(--muted)' : 'var(--accent)';
+    const label = monthLabel(m) + (m.partial ? ' (partial)' : '') + (m.estimated ? ' (estimated)' : '');
+    return `<circle cx="${cx}" cy="${cy}" r="5" fill="${color}" data-label="${label}" data-value="${m.kwh}" style="cursor:pointer;"/>`;
+  }).join('');
+
+  // X-axis labels: every month
+  const xLabels = data.map((m, i) => {
+    return `<text x="${xFor(i)}" y="${H - padB + 18}" font-size="10" fill="var(--muted)" text-anchor="middle">${MONTH_NAMES[m.month - 1]} '${String(m.year).slice(2)}</text>`;
+  }).join('');
+
+  // Y-axis gridlines/labels (4 ticks)
+  const ticks = 4;
+  let yLabels = '';
+  let gridLines = '';
+  for (let t = 0; t <= ticks; t++) {
+    const val = (maxVal / ticks) * t;
+    const y = yFor(val);
+    yLabels += `<text x="${padL - 8}" y="${y + 4}" font-size="11" fill="var(--muted)" text-anchor="end">${val.toFixed(0)}</text>`;
+    gridLines += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#56697b" stroke-width="1"/>`;
+  }
+
+  chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;">
+    ${gridLines}
+    <polyline points="${points}" fill="none" stroke="var(--accent)" stroke-width="2"/>
+    ${dots}
+    ${xLabels}
+    ${yLabels}
+    <text x="${padL}" y="${H - 6}" font-size="11" fill="var(--muted)">Month</text>
+    <text x="10" y="14" font-size="11" fill="var(--muted)">kWh</text>
+  </svg>`;
+  attachChartTooltips('monthlyChart');
+}
+
+function populateMonthSelectors(data) {
+  const optsHtml = data.map((m, i) =>
+    `<option value="${i}">${monthLabel(m)}${m.partial ? ' (partial)' : ''}</option>`
+  ).join('');
+  const selA = document.getElementById('monthA');
+  const selB = document.getElementById('monthB');
+  selA.innerHTML = optsHtml;
+  selB.innerHTML = optsHtml;
+  // Default: left = same month last year (older reference), right = most recent complete month
+  const lastIdx = data.length - 1;
+  selB.value = lastIdx;
+  const target = data[lastIdx];
+  const sameMonthLastYear = data.findIndex(m => m.month === target.month && m.year === target.year - 1);
+  selA.value = sameMonthLastYear !== -1 ? sameMonthLastYear : Math.max(0, lastIdx - 1);
+  updateComparison();
+}
+
+function updateComparison() {
+  const selA = document.getElementById('monthA');
+  const selB = document.getElementById('monthB');
+  if (!monthlyDataCache.length || selA.value === '' || selB.value === '') return;
+  const a = monthlyDataCache[parseInt(selA.value)];
+  const b = monthlyDataCache[parseInt(selB.value)];
+  const result = document.getElementById('compareResult');
+  if (!a || !b) { result.innerHTML = ''; return; }
+  const diff = b.kwh - a.kwh;
+  const pct = a.kwh !== 0 ? (diff / a.kwh * 100) : null;
+  const color = diff >= 0 ? 'var(--good)' : 'var(--bad)';
+  result.innerHTML = `<strong>${monthLabel(a)}:</strong> ${a.kwh.toFixed(1)} kWh &nbsp; vs &nbsp;
+    <strong>${monthLabel(b)}:</strong> ${b.kwh.toFixed(1)} kWh &nbsp;
+    <span style="color:${color};font-weight:600;">(${diff >= 0 ? '+' : ''}${diff.toFixed(1)} kWh${pct !== null ? ', ' + (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%' : ''})</span>`;
+}
+
+document.getElementById('monthA').addEventListener('change', updateComparison);
+document.getElementById('monthB').addEventListener('change', updateComparison);
+
+async function populateDailyMonthPicker() {
+  const picker = document.getElementById('dailyMonthPicker');
+  try {
+    const resp = await fetch('/history/monthly', { cache: 'no-store' });
+    const months = await resp.json();
+    if (!months.length) {
+      picker.innerHTML = '<option value="">No months with data yet</option>';
+      return;
+    }
+    picker.innerHTML = months.map((m, i) =>
+      `<option value="${m.year}-${m.month}">${monthLabel(m)}${m.partial ? ' (in progress)' : ''}</option>`
+    ).join('');
+    picker.value = `${months[months.length - 1].year}-${months[months.length - 1].month}`;
+  } catch (err) {
+    picker.innerHTML = '<option value="">Could not load months</option>';
+  }
+}
+
+document.getElementById('loadMtdBtn').addEventListener('click', async () => {
+  const wrap = document.getElementById('mtdChartWrap');
+  const picker = document.getElementById('dailyMonthPicker');
+  const [year, month] = (picker.value || '').split('-');
+  if (!year || !month) {
+    wrap.innerHTML = 'Pick a month first.';
+    return;
+  }
+  try {
+    const [prodResp, weatherResp] = await Promise.all([
+      fetch(`/history/daily?year=${year}&month=${month}`, { cache: 'no-store' }),
+      fetch(`/weather/daily?year=${year}&month=${month}`, { cache: 'no-store' }),
+    ]);
+    const data = await prodResp.json();
+    const weatherRows = await weatherResp.json();
+    const weatherByDate = {};
+    (weatherRows || []).forEach(w => { weatherByDate[w.date] = w; });
+    renderMtdChart(data, weatherByDate);
+  } catch (err) {
+    wrap.innerHTML = 'Could not load daily chart: ' + err.message;
+  }
+});
+
+populateDailyMonthPicker();
+
+function renderMtdChart(data, weatherByDate) {
+  weatherByDate = weatherByDate || {};
+  const wrap = document.getElementById('mtdChartWrap');
+  if (!data.length) {
+    wrap.innerHTML = 'No data yet for this month — check back after a few days of logging.';
+    return;
+  }
+
+  const W = 700, H = 290, padL = 50, padR = 20, padT = 40, padB = 40;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+
+  const values = data.map(d => d.kwh);
+  const maxVal = Math.max(...values, 1);
+  const minVal = 0;
+
+  const xStep = data.length > 1 ? plotW / (data.length - 1) : 0;
+  const xFor = i => padL + i * xStep;
+  const yFor = v => padT + plotH - ((v - minVal) / (maxVal - minVal || 1)) * plotH;
+
+  const points = data.map((d, i) => `${xFor(i)},${yFor(d.kwh)}`).join(' ');
+
+  const dots = data.map((d, i) => {
+    const cx = xFor(i), cy = yFor(d.kwh);
+    const color = d.partial ? 'var(--muted)' : 'var(--accent)';
+    const w = weatherByDate[d.date];
+    let label = d.date + (d.partial ? ' (partial)' : '') + (d.estimated ? ' (estimated)' : '');
+    if (w) {
+      const info = weatherInfo(w.weathercode);
+      label += ` — ${info.label}`;
+      if (w.temp_max !== null && w.temp_max !== undefined) label += `, ${Math.round(w.temp_max)}°/${Math.round(w.temp_min)}°F`;
+    }
+    return `<circle cx="${cx}" cy="${cy}" r="5" fill="${color}" data-label="${label}" data-value="${d.kwh}" style="cursor:pointer;"/>`;
+  }).join('');
+
+  // Weather icon row above the chart, one per day
+  const weatherIcons = data.map((d, i) => {
+    const w = weatherByDate[d.date];
+    if (!w || w.weathercode === null || w.weathercode === undefined) return '';
+    const info = weatherInfo(w.weathercode);
+    return `<text x="${xFor(i)}" y="${padT - 18}" font-size="13" text-anchor="middle">${info.icon}</text>`;
+  }).join('');
+
+  // X-axis labels: show every day of the month
+  const xLabels = data.map((d, i) => {
+    const dayNum = d.date.split('-')[2];
+    return `<text x="${xFor(i)}" y="${H - padB + 18}" font-size="10" fill="var(--muted)" text-anchor="middle">${dayNum}</text>`;
+  }).join('');
+
+  // Y-axis gridlines/labels (4 ticks)
+  const ticks = 4;
+  let yLabels = '';
+  let gridLines = '';
+  for (let t = 0; t <= ticks; t++) {
+    const val = (maxVal / ticks) * t;
+    const y = yFor(val);
+    yLabels += `<text x="${padL - 8}" y="${y + 4}" font-size="11" fill="var(--muted)" text-anchor="end">${val.toFixed(0)}</text>`;
+    gridLines += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#56697b" stroke-width="1"/>`;
+  }
+
+  const hasWeather = Object.keys(weatherByDate).length > 0;
+  const hasEstimates = data.some(d => d.estimated);
+
+  wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;">
+    ${gridLines}
+    <polyline points="${points}" fill="none" stroke="var(--accent)" stroke-width="2"/>
+    ${dots}
+    ${weatherIcons}
+    ${xLabels}
+    ${yLabels}
+    <text x="${padL}" y="${H - 6}" font-size="11" fill="var(--muted)">Day of month</text>
+    <text x="10" y="14" font-size="11" fill="var(--muted)">kWh</text>
+  </svg>
+  ${!hasWeather ? '<div style="font-size:0.75rem;color:var(--muted);margin-top:6px;">No weather data for this month yet — it backfills automatically in the background, check back later.</div>' : ''}
+  ${hasEstimates ? '<div style="font-size:0.75rem;color:var(--muted);margin-top:6px;">Days marked “estimated” fall inside a stretch when logging was off, so their totals are spread across the gap using daylight hours and that day’s solar radiation.</div>' : ''}`;
+  attachChartTooltips('mtdChartWrap');
+}
+
+document.getElementById('loadAnalysisBtn').addEventListener('click', async () => {
+  try {
+    const resp = await fetch('/history/monthly', { cache: 'no-store' });
+    const data = await resp.json();
+    monthlyDataCache = data;
+    renderMonthlyChart(data);
+    populateMonthSelectors(data);
+  } catch (err) {
+    document.getElementById('monthlyChart').innerHTML = 'Could not load monthly analysis: ' + err.message;
+  }
+});
+
+// ---------- Sunlight-adjusted output (cleaning signal) ----------
+function fmtShortDate(iso) {
+  const [y, m, d] = iso.split('-');
+  return `${MONTH_NAMES[parseInt(m, 10) - 1]} ${parseInt(d, 10)}`;
+}
+
+function efficiencyVerdict(s) {
+  const drop = (s.vs_peak_pct === null || s.vs_peak_pct === undefined) ? null : Math.abs(s.vs_peak_pct).toFixed(1);
+  const rain = s.days_since_rain;
+  if (s.status === 'not_enough_data') {
+    return 'Not enough usable days yet — this needs at least 5 reasonably sunny, fully-logged days in the last two weeks. It fills in as history builds up.';
+  }
+  if (s.status === 'ok') {
+    return 'Output per hour of sunlight looks steady — nothing here suggests the panels need attention.';
+  }
+  if (s.status === 'watch') {
+    return `Slightly below its recent peak (down ${drop}%). Worth watching over the next couple of weeks.`;
+  }
+  if (rain !== null && rain !== undefined && rain <= 7) {
+    const when = rain === 0 ? 'today' : `${rain} day${rain === 1 ? '' : 's'} ago`;
+    return `Down ${drop}% from its recent peak even though it rained ${when}, so dust is a less likely cause. Check for new shade, an offline panel (see the panel table on Overview), or an inverter issue.`;
+  }
+  const rainText = (rain === null || rain === undefined) ? 'no rain has been logged' : `it hasn’t rained in ${rain} days`;
+  return `Down ${drop}% from its recent peak, and ${rainText}. Dust buildup is a likely cause — a rinse may help. (A sudden one-day drop is more likely shade or an offline panel.)`;
+}
+
+function renderEfficiency(p) {
+  const chart = document.getElementById('effChart');
+  const sumEl = document.getElementById('effSummary');
+  const rows = p.days || [];
+  const valid = rows.filter(r => r['yield'] !== null && r['yield'] !== undefined);
+  const s = p.summary;
+
+  if (s) {
+    const pct = v => (v === null || v === undefined) ? '–' : (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(1) + '%';
+    const color = s.status === 'attention' ? 'var(--bad)' : s.status === 'watch' ? 'var(--accent)' : s.status === 'ok' ? 'var(--good)' : 'var(--text)';
+    const lastYearColor = (s.vs_last_year_pct === null || s.vs_last_year_pct === undefined) ? 'var(--text)'
+      : s.vs_last_year_pct <= -5 ? 'var(--bad)' : s.vs_last_year_pct <= -2.5 ? 'var(--accent)' : 'var(--text)';
+    sumEl.innerHTML = `<div class="minicards">
+      <div class="minicard"><div class="label">Last 14 days</div>
+        <div class="value">${s.recent !== null ? s.recent.toFixed(2) : '–'}<span class="unit">kWh / sun-hr</span></div>
+        <div class="sub">median of usable days</div></div>
+      <div class="minicard"><div class="label">vs. recent peak</div>
+        <div class="value" style="color:${color};">${pct(s.vs_peak_pct)}</div>
+        <div class="sub">${s.peak !== null ? 'best stretch: ' + s.peak.toFixed(2) : 'not enough data'}</div></div>
+      <div class="minicard"><div class="label">vs. same time last year</div>
+        <div class="value" style="color:${lastYearColor};">${pct(s.vs_last_year_pct)}</div>
+        <div class="sub">${s.vs_last_year_pct === null || s.vs_last_year_pct === undefined ? 'needs a year of history' : 'same two weeks, last year'}</div></div>
+      <div class="minicard"><div class="label">Last rain</div>
+        <div class="value">${s.last_rain_date ? fmtShortDate(s.last_rain_date) : 'None logged'}</div>
+        <div class="sub">${s.days_since_rain !== null && s.days_since_rain !== undefined ? s.days_since_rain + ' days ago' : ''}</div></div>
+    </div>
+    <div style="margin-top:12px;font-size:0.9rem;line-height:1.5;">${escapeHtml(efficiencyVerdict(s))}</div>`;
+  } else {
+    sumEl.innerHTML = '';
+  }
+
+  if (!valid.length) {
+    chart.innerHTML = 'No usable days to chart yet — it needs complete, fully-logged days with weather data (and enough sunshine) to work with.';
+    return;
+  }
+
+  const W = 700, H = 300, padL = 52, padR = 20, padT = 20, padB = 40;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const dayMs = r => new Date(r.date + 'T00:00:00').getTime();
+  const t0 = dayMs(rows[0]), t1 = dayMs(rows[rows.length - 1]);
+  const xFor = r => padL + ((dayMs(r) - t0) / ((t1 - t0) || 1)) * plotW;
+
+  const vals = valid.map(r => r['yield']).concat(valid.filter(r => r.rolling !== null).map(r => r.rolling));
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const pad = (hi - lo) * 0.15 || 0.5;
+  const ymin = lo - pad, ymax = hi + pad;
+  const yFor = v => padT + plotH - ((v - ymin) / (ymax - ymin)) * plotH;
+
+  let gridLines = '', yLabels = '';
+  for (let t = 0; t <= 4; t++) {
+    const val = ymin + (ymax - ymin) * t / 4;
+    const y = yFor(val);
+    gridLines += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#56697b" stroke-width="1"/>`;
+    yLabels += `<text x="${padL - 8}" y="${y + 4}" font-size="11" fill="var(--muted)" text-anchor="end">${val.toFixed(1)}</text>`;
+  }
+
+  const step = Math.max(1, Math.ceil(rows.length / 7));
+  const xLabels = rows.map((r, i) => (i % step !== 0) ? '' :
+    `<text x="${xFor(r)}" y="${H - padB + 18}" font-size="10" fill="var(--muted)" text-anchor="middle">${fmtShortDate(r.date)}</text>`).join('');
+
+  const rainMarks = rows.filter(r => r.rain).map(r => {
+    const x = xFor(r);
+    const mm = (r.precip_mm !== null && r.precip_mm !== undefined) ? r.precip_mm.toFixed(1) : '?';
+    return `<line x1="${x}" y1="${padT}" x2="${x}" y2="${padT + plotH}" stroke="#7fb8ff" stroke-opacity="0.35" stroke-width="2"/>
+      <circle cx="${x}" cy="${padT + plotH - 7}" r="4" fill="#7fb8ff" data-label="${r.date} — rain" data-value="${mm}" data-unit=" mm" style="cursor:pointer;"/>`;
+  }).join('');
+
+  const rolling = rows.filter(r => r.rolling !== null).map(r => `${xFor(r)},${yFor(r.rolling)}`).join(' ');
+  const dots = valid.map(r => `<circle cx="${xFor(r)}" cy="${yFor(r['yield'])}" r="3.2" fill="var(--text)" fill-opacity="0.55"
+      data-label="${r.date} · ${r.kwh.toFixed(1)} kWh ÷ ${r.sun_hours.toFixed(1)} sun-hrs" data-value="${r['yield'].toFixed(2)}" data-unit=" kWh/sun-hr" style="cursor:pointer;"/>`).join('');
+
+  chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;">
+    ${gridLines}
+    ${rainMarks}
+    ${rolling ? `<polyline points="${rolling}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/>` : ''}
+    ${dots}
+    ${xLabels}
+    ${yLabels}
+    <text x="10" y="14" font-size="11" fill="var(--muted)">kWh per sun-hour</text>
+  </svg>
+  <div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:0.75rem;color:var(--muted);margin-top:6px;">
+    <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--text);opacity:.55;"></span> each day</span>
+    <span><span style="display:inline-block;width:16px;height:3px;background:var(--accent);vertical-align:middle;"></span> 14-day median</span>
+    <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#7fb8ff;"></span> rain (≥ 1 mm)</span>
+    <span>${valid.length} usable days shown${p.adjusted ? ' · temperature-adjusted' : ''}</span>
+  </div>`;
+  attachChartTooltips('effChart');
+}
+
+async function loadEfficiency() {
+  const chart = document.getElementById('effChart');
+  const days = document.getElementById('effRange').value;
+  const adj = document.getElementById('effTempAdjust').checked ? 1 : 0;
+  try {
+    const resp = await fetch(`/history/efficiency?days=${days}&adjust_temp=${adj}`, { cache: 'no-store' });
+    const payload = await resp.json();
+    if (payload.error) throw new Error(payload.error);
+    renderEfficiency(payload);
+  } catch (err) {
+    chart.innerHTML = 'Could not load this chart: ' + escapeHtml(err.message);
+  }
+}
+document.getElementById('effRange').addEventListener('change', loadEfficiency);
+document.getElementById('effTempAdjust').addEventListener('change', loadEfficiency);
+document.getElementById('effRefreshBtn').addEventListener('click', loadEfficiency);
+
+// ---------- Status line + warning banner ----------
+const statusPill = document.getElementById('statusPill');
+
+function setStatus(state, text) {
+  statusPill.className = 'status-pill' + (state ? ' ' + state : '');
+  statusPill.textContent = text;
+}
+
+function fmtClock(ts) {
+  const d = new Date(ts * 1000);
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (d.toDateString() === new Date().toDateString()) return time;
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ', ' + time;
+}
+
+function fmtAgo(sec) {
+  sec = Math.max(0, Math.round(sec));
+  if (sec < 90) return 'just now';
+  const m = Math.round(sec / 60);
+  if (m < 60) return m + ' min ago';
+  const h = Math.floor(sec / 3600), mm = Math.round((sec % 3600) / 60);
+  if (h < 24) return h + ' h' + (mm ? ' ' + mm + ' m' : '') + ' ago';
+  const days = Math.floor(h / 24);
+  return days + (days === 1 ? ' day ago' : ' days ago');
+}
+
+function statusItem(level, label, detail, tooltip) {
+  return `<span class="status-item" title="${escapeHtml(tooltip || '')}"><span class="sdot ${level}"></span>${label}${detail ? ': ' + detail : ''}</span>`;
+}
+
+function showBanner(level, html) {
+  const b = document.getElementById('warningBanner');
+  b.className = 'warning-banner ' + level;
+  b.innerHTML = html;
+  b.style.display = 'block';
+}
+function hideBanner() {
+  document.getElementById('warningBanner').style.display = 'none';
+}
+function markStale(isStale) {
+  ['liveCards', 'panelPanel'].forEach(id => document.getElementById(id).classList.toggle('stale', isStale));
+}
+
+function solarHint(err) {
+  const e = (err || '').toLowerCase();
+  if (/timed out|refused|unreachable|no route|urlopen error/.test(e)) {
+    return 'The gateway isn’t answering. Check that it’s powered on and shows as online in the eero app, and that its IP address still matches <code>pvs_ip</code> in config.json.';
+  }
+  if (/401|403|unauthor|forbidden/.test(e)) {
+    return 'The gateway rejected the login. Double-check <code>pvs_password</code> (the last 5 characters of the PVS serial number).';
+  }
+  return 'Check the terminal window running solar_proxy.py for details.';
+}
+
+async function loadStatus() {
+  const line = document.getElementById('statusLine');
+  let s;
+  try {
+    const resp = await fetch('/status', { cache: 'no-store' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    s = await resp.json();
+  } catch (err) {
+    setStatus('err', 'offline');
+    line.innerHTML = statusItem('bad', 'Dashboard server', 'unreachable', err.message);
+    showBanner('bad', `<strong>Can’t reach the dashboard server.</strong><br>
+      Make sure <code>solar_proxy.py</code> is still running in its terminal window (and the PC hasn’t gone to sleep or restarted), then refresh this page. What’s on screen may be out of date.`);
+    markStale(true);
+    return;
+  }
+
+  const sol = s.solar, hist = s.history, w = s.weather, cal = s.calendar;
+  const age = sol.last_success_ts ? (s.now - sol.last_success_ts) : null;
+
+  if (sol.level === 'ok') setStatus('ok', 'live');
+  else if (sol.level === 'warn') setStatus('warn', 'lagging');
+  else if (sol.level === 'bad') setStatus('err', 'offline');
+  else setStatus('', 'connecting…');
+
+  line.innerHTML = [
+    statusItem(sol.level, 'Solar', age !== null ? `updated ${fmtClock(sol.last_success_ts)} (${fmtAgo(age)})` : (sol.level === 'bad' ? 'not connected' : 'waiting for first reading'), sol.last_error),
+    statusItem(hist.level, 'History', hist.last_reading_ts ? `saved ${fmtClock(hist.last_reading_ts)}` : 'nothing saved yet', ''),
+    statusItem(w.level, 'Weather', w.level === 'warn' ? 'couldn’t refresh' : '', w.last_error),
+    statusItem(cal.level, 'Calendar', cal.level === 'warn' ? 'couldn’t refresh' : '', cal.last_error),
+  ].join('');
+
+  markStale(sol.level === 'warn' || sol.level === 'bad');
+
+  if (sol.level === 'warn' || sol.level === 'bad') {
+    const since = sol.last_success_ts
+      ? `Solar data hasn’t updated since <strong>${fmtClock(sol.last_success_ts)}</strong> (${fmtAgo(age)}).`
+      : 'Solar data hasn’t loaded since the script started.';
+    const errText = sol.last_error ? ` Last error: <code>${escapeHtml(sol.last_error)}</code>` : '';
+    showBanner(sol.level, `<strong>${sol.level === 'bad' ? 'Solar data is not updating' : 'Solar data is lagging'}</strong><br>
+      ${since}${errText}<br><span class="hint">${solarHint(sol.last_error)}</span>`);
+  } else if (hist.level === 'warn') {
+    showBanner('warn', `<strong>Readings aren’t being saved to history</strong><br>
+      Live data is arriving, but the last saved reading was ${hist.last_reading_ts ? fmtClock(hist.last_reading_ts) : 'never'}. <span class="hint">Check the terminal running solar_proxy.py for errors writing to solar_history.db.</span>`);
+  } else {
+    hideBanner();
+  }
+}
+
+function num(v) {
+  const n = parseFloat(v);
+  return isNaN(n) ? null : n;
+}
+
+function render(data) {
+  const live = data.livedata || {};
+  const meters = data.meters || {};
+  const inverters = data.inverters || {};
+
+  const pv_p = num(live['/sys/livedata/pv_p']);           // production kW
+  const net_p = num(live['/sys/livedata/net_p']);         // grid net kW
+  const load_p = num(live['/sys/livedata/site_load_p']);  // consumption kW
+  const pv_en = num(live['/sys/livedata/pv_en']);         // lifetime production kWh
+
+  document.getElementById('curProduction').innerHTML = (pv_p !== null ? pv_p.toFixed(2) : '–') + '<span class="unit">kW</span>';
+  document.getElementById('curConsumption').innerHTML = (load_p !== null ? load_p.toFixed(2) : '–') + '<span class="unit">kW</span>';
+  document.getElementById('lifetimeProduction').innerHTML = (pv_en !== null ? Math.round(pv_en).toLocaleString() : '–') + '<span class="unit">kWh</span>';
+
+  const netEl = document.getElementById('curNet');
+  if (net_p !== null) {
+    netEl.innerHTML = (net_p >= 0 ? '+' : '') + net_p.toFixed(2) + '<span class="unit">kW</span>';
+    netEl.style.color = net_p >= 0 ? 'var(--good)' : 'var(--bad)';
+  }
+
+  const invRows = Object.values(inverters).map(inv => {
+    const power = num(inv.pMppt1Kw);
+    const online = power !== null && power >= 0;
+    return `<tr>
+      <td>${inv.sn || '–'}</td>
+      <td><span class="dot ${online ? 'on' : 'off'}"></span>${online ? 'Online' : 'Offline'}</td>
+      <td>${power !== null ? power.toFixed(3) + ' kW' : '–'}</td>
+      <td>${inv.ltea3phsumKwh !== undefined ? Number(inv.ltea3phsumKwh).toFixed(1) : '–'}</td>
+      <td>${inv.tHtsnkDegc !== undefined ? Math.round(inv.tHtsnkDegc * 9 / 5 + 32) + '°F' : '–'}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('panelRows').innerHTML = invRows || '<tr><td colspan="5" style="color:var(--muted)">No inverter data returned.</td></tr>';
+  document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString();
+}
+
+async function poll() {
+  try {
+    const resp = await fetch('/data', { cache: 'no-store' });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    render(data);
+  } catch (err) {
+    // the details (and the warning banner) come from the status check below
+  }
+  await loadStatus();
+}
+
+async function pollHistory() {
+  try {
+    const resp = await fetch('/history', { cache: 'no-store' });
+    const hist = await resp.json();
+    if (!hist) {
+      const note = 'Still collecting data — leave solar_proxy.py running and this will fill in.';
+      ['histToday','histWeek','histMonth','histYtd'].forEach(id => {
+        document.getElementById(id).innerHTML = '–<span class="unit">kWh</span>';
+      });
+      return;
+    }
+    const setCard = (id, val) => {
+      document.getElementById(id).innerHTML =
+        (val !== null && val !== undefined ? val.toFixed(1) : '–') + '<span class="unit">kWh</span>';
+    };
+    setCard('histToday', hist.today);
+    setCard('histWeek', hist.week);
+    setCard('histMonth', hist.month);
+    setCard('histYtd', hist.ytd);
+  } catch (err) {
+    // quiet fail - history is secondary to live data
+  }
+}
+
+poll();
+setInterval(poll, 30000);
+pollHistory();
+setInterval(pollHistory, 60000);
+loadEfficiency();
+setInterval(loadEfficiency, 1800000);
+</script>
+</body>
+</html>
