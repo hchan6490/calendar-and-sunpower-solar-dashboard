@@ -7,7 +7,7 @@ A locally-hosted dashboard that replaced SunPower's paywalled monitoring app. It
 - **Live solar monitoring**: current production, consumption, and grid import/export, pulled directly from your PVS6 gateway
 - **Historical solar tracking**: Today / This Week / This Month / Year-to-Date totals, a day-by-day chart for any month, and a month-over-month comparison chart (useful for spotting year-over-year panel degradation)
 - **Weather logging**: current conditions plus a historical record correlated against your production data, so a low-output day can be checked against whether it was cloudy
-- **Shared calendar**: upcoming events from one or more Google Calendars, color-coded, with support for recurring and multi-day events
+- **Shared calendar**: a Google-Calendar-style month view combining one or more Google Calendars, color-coded, with recurring and multi-day events
 
 ## Files in this project
 
@@ -15,9 +15,8 @@ A locally-hosted dashboard that replaced SunPower's paywalled monitoring app. It
 |---|---|
 | `solar_proxy.py` | The local server. Talks to your PVS6 gateway, Open-Meteo (weather), and Google Calendar. Serves the dashboard and its data. |
 | `dashboard.html` | The dashboard itself — what you see in the browser. |
-| `config.json` | Your secrets (PVS IP/password, zip code, calendar URLs). **Not meant to be shared or committed anywhere public.** |
-| `solar_history.db` | SQLite database, created automatically. Stores every logged solar reading and daily weather. |
-| `fix_gap.py` | Legacy utility for manually correcting a logging gap. No longer needed — gaps are estimated automatically (see "Logging gaps" below). |
+| `config.json` | **Yours only — never commit this.** PVS IP/password, zip code, and your calendar URLs. Listed in `.gitignore`. |
+| `solar_history.db` | SQLite database, created automatically on first run. Stores every logged solar reading and daily weather. **Never commit this** — it's your personal history (also in `.gitignore`). |
 
 All files should live in the same folder.
 
@@ -28,6 +27,7 @@ All files should live in the same folder.
 ### 1. Prerequisites
 
 - Python 3 installed on your PC
+- A browser with internet access (the calendar view loads its FullCalendar library from a CDN)
 - One-time package install for calendar support:
   ```
   pip install icalendar recurring-ical-events --break-system-packages
@@ -35,35 +35,34 @@ All files should live in the same folder.
 
 ### 2. `config.json`
 
-Create this file in the same folder, filled in with your own values:
+Update `config.json` and fill in your own values:
 
 ```json
 {
   "pvs_ip": "192.168.x.x",
-  "pvs_password": "xxxxx",
-  "zip_code": "91761"
+  "pvs_password": "CHANGE_ME",
+  "zip_code": "90210",
+  "calendars": [
+    { "name": "Family", "url": "PASTE_YOUR_SECRET_ICAL_URL_HERE", "color": "#f5a623" },
+    { "name": "Work", "url": "PASTE_ANOTHER_SECRET_ICAL_URL_HERE", "color": "#4fd1c5" }
+  ]
 }
 ```
 
-- **pvs_ip**: your PVS6 gateway's local IP address. Find it via your router's connected-devices list (or, for eero, the eero app's device list — look for a name like `pvs6-...`).
-  - In the Eero App > Network Settings > Reservations & Port Forwarding > Add Reservation > Locate PVS > Add.
+- **pvs_ip**: your PVS6 gateway's local IP address. Find it via your router's connected-devices list (or, for eero, the eero app's device list — look for a name like `pvs6-...`). Giving the gateway a fixed address (a DHCP reservation in your router) keeps this from changing.
 - **pvs_password**: the **last 5 characters** of your PVS serial number. Find the full serial in the SunStrong Connect app under Profile → System Info, or on a sticker on the gateway itself.
 - **zip_code**: used to look up your location for weather data.
-
-Calendar URLs are configured separately, directly in `solar_proxy.py` (see below) since each calendar also needs a name and color.
+- **calendars**: one entry per Google Calendar — see below. `color` is optional.
 
 ### 3. Calendars
 
-In `solar_proxy.py`, find the `CALENDARS` list and add one entry per calendar:
-
-```python
-CALENDARS = [
-    {"name": "Family", "url": "https://calendar.google.com/calendar/ical/...", "color": "#f5a623"},
-    {"name": "Work", "url": "https://calendar.google.com/calendar/ical/...", "color": "#4fd1c5"},
-]
-```
+Each entry in `calendars` needs a display name, that calendar's secret iCal URL, and (optionally) a hex color used to tint its events. Add as many as you like.
 
 To get a calendar's URL: in Google Calendar, hover over the calendar in the sidebar → three dots → **Settings and sharing** → scroll to **"Integrate calendar"** → copy the **"Secret address in iCal format."** This is read-only and doesn't require any Google login/OAuth setup — the tradeoff is that events can only be viewed here, not created or edited from the dashboard.
+
+**Treat these URLs like passwords:** anyone who has one can read that calendar. If one ever leaks, use the reset option next to it in Google Calendar to invalidate it.
+
+(Older configs that used one `<name>_calendar_url` key per calendar, like `family_calendar_url`, still work, with colors picked automatically.)
 
 ### 4. Run it
 
@@ -80,7 +79,7 @@ Leave that terminal window open, then open **http://localhost:8765** in your bro
 The header reads **🏠 Home Dashboard**, with two top-level tabs:
 
 ### Calendar (default tab)
-Upcoming events for the next 30 days, grouped by day ("Today," "Tomorrow," then date). Each event shows its time (start–end for timed events, a date range for multi-day events, "All day" for all-day events), and is color-coded by which calendar it came from.
+A month-view calendar in the style of Google Calendar (built with [FullCalendar](https://fullcalendar.io/)). Use the arrows to move between months, **today** to jump back, and **Refresh** to re-fetch events. Each configured calendar's events are tinted with that calendar's color, recurring events are expanded, multi-day events span across their days, and hovering an event shows its location. Busy days collapse into a "+N more" link. Events are fetched for whichever month you're viewing (and cached for 15 minutes), so you can browse backward and forward freely.
 
 ### Solar
 Has two sub-tabs, defaulting to **Overview**:
@@ -117,7 +116,7 @@ Think of it like a car odometer: your PVS6 gateway tracks *lifetime* energy prod
 **What this means in practice:**
 - You don't need the script running every single second — you just need *a* snapshot reasonably close to the start of each day/week/month/year, and another whenever you check. The gateway keeps counting in hardware the whole time regardless of whether the script is running.
 - **Gaps are handled automatically.** If the script wasn't running for a while, there's no reading exactly at midnight (or the start of the week/month), so the dashboard estimates what the counter read at that moment. Between readings that are close together it draws a straight line. Across a long gap it spreads the gap's energy using the hours of daylight each day and that day's measured solar radiation from the weather data — so nighttime gets none, and a sunny day gets a bigger share than a cloudy one. The most common case (you forgot to start it in the morning, and the last reading was from the evening before) comes out exact, because nothing is produced overnight. Days that fall inside a longer gap are marked **(estimated)** in the chart tooltips, since those totals are good estimates rather than measurements.
-- For the cleanest daily/weekly numbers, it helps to have the script running (or run it briefly) once each morning before sunrise — timing doesn't matter precisely since no generation happens overnight anyway.
+- **When to run it (if you're not leaving it on 24/7):** once a day, in the evening after sunset, is the sweet spot — the panels are done for the day, so that reading closes the day out exactly. (Once before sunrise works just as well.) It only takes a minute: start the script, let it connect, and it logs a reading right away. Missing a day is fine; the gap handling above fills it in and marks it as an estimate.
 
 **Logging frequency:** the dashboard polls live data every 30 seconds for responsiveness, but only writes a new row to the database every `LOG_INTERVAL_SECONDS` (currently 30 minutes) to avoid bloating the database with redundant snapshots. A separate background thread also checks in every `BACKGROUND_LOG_INTERVAL_SECONDS` even if the browser tab isn't open, so logging continues as long as the script is running.
 
@@ -159,15 +158,16 @@ SELECT datetime(ts, 'unixepoch', 'localtime'), pv_en FROM readings ORDER BY ts D
 ```
 (Or use a GUI tool like DB Browser for SQLite.)
 
-### Logging gaps and `fix_gap.py`
+### Logging gaps
 
-Gap handling is now built into the dashboard's calculations, so `fix_gap.py` is no longer needed for new gaps. It's still in the folder if you want it, and any checkpoints it inserted in the past are treated like real readings. (Optional: those past checkpoints force an even split between two days. If you'd rather have the weather-weighted estimate for those days, they can be removed — they're the rows whose `ts` is a whole number landing exactly on local midnight. Back up `solar_history.db` first.)
-
+Gap handling is now built into the dashboard's calculations.
 ---
 
 ## Troubleshooting notes
 
 - **A `401`/`403` followed immediately by `Logged in to PVS OK`** in the terminal is normal — the gateway's login session expires periodically, and the script automatically re-authenticates and retries. Only worry if this repeats on *every* single request.
+- **A red/amber warning banner saying the gateway isn't answering** ("timed out" or "refused") means the script can't reach the PVS. Check that the gateway is powered on and shows as online in your router app, that its IP address still matches `pvs_ip` in `config.json`, and consider a DHCP reservation so the address stops changing. Everything else (calendar, weather, past history) keeps working in the meantime, and any logging gap is estimated automatically once it reconnects.
+- **A long `ConnectionAbortedError [WinError 10053]` traceback in the terminal** is harmless: the browser hung up mid-response (closing a tab, refreshing, or a newer request replacing an older one). The server ignores these automatically; genuine errors still print.
 - **"Failed to fetch"** in the dashboard means the browser couldn't reach the local server at all — usually means `solar_proxy.py` isn't running, was left on an old/crashed process, or needs a restart after an edit.
 - **A `400 Bad Request` with errorcode `0x0040`** from the PVS gateway means the specific variable path being queried (e.g., `meter/data`) doesn't exist under that name on your firmware version — this gateway's firmware uses flatter paths like `/sys/devices/meter/0/...` instead of the nested paths shown in SunPower's own documentation.
 - **CORS / why this needs a local Python server at all**: browsers block webpages from making authenticated cross-device HTTPS requests directly to your gateway. `solar_proxy.py` isn't a webpage, so it isn't subject to that restriction — it does the login/auth itself and hands clean JSON to the dashboard running in your browser.
@@ -187,7 +187,7 @@ All served locally by `solar_proxy.py` at `http://localhost:8765`:
 | `/history/monthly` | Total kWh per calendar month, across all logged history |
 | `/weather/current` | Live current conditions |
 | `/weather/daily?year=Y&month=M` | Logged daily weather for a given month |
-| `/calendar/upcoming` | Upcoming events across all configured calendars |
+| `/calendar/upcoming?start=YYYY-MM-DD&end=YYYY-MM-DD` | Events across all configured calendars for that date range (defaults to the next 30 days if omitted) |
 | `/status` | When each data source last worked, plus its health level and last error |
 | `/history/efficiency?days=N&adjust_temp=0/1` | Daily sunlight-adjusted output, 14-day median, rain days, and the summary used by the cleaning-signal chart |
 
